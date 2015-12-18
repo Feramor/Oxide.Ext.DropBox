@@ -19,6 +19,16 @@ Installing the extension is and remains free for non-commercial and commercial u
 5. Run server, wait for fully loaded and stop server.
 6. New config file will be created under `oxide\config` called `DropBox.json`
 7. Edit config file and start server
+8. Check Oxide log for authorization link `https://www.dropbox.com/1/oauth/authorize?oauth_token=XXXXXXXXXXXXXXXXXXXX`
+9. Open authorization link in your Browser
+10. Login & Authorize your application
+11. After you authorized you will start backing your files to DropBox
+11. [Info] [DropBox] Authorizing
+12. [Info] [DropBox] Authorization Succeed
+13. [Info] [DropBox] Current Dropbox User : User Display Name(User Email)
+14. [Info] [DropBox] First Backup : MM/DD/YYYY HH:MM:SS Acording to Culture Settings
+15. [Info] [DropBox] Uploading...
+16. [Info] [DropBox] Uploading Complated.Next Backup : MM/DD/YYYY HH:MM:SS Acording to Culture Settings
 
 ## Configration
 | Option | Default | Description
