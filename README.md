@@ -28,7 +28,7 @@ Installing the extension is and remains free for non-commercial and commercial u
 13. [Info] [DropBox] Current Dropbox User : User Display Name(User Email)
 14. [Info] [DropBox] First Backup : MM/DD/YYYY HH:MM:SS Acording to Culture Settings
 15. [Info] [DropBox] Uploading...
-16. [Info] [DropBox] Uploading Complated.Next Backup : MM/DD/YYYY HH:MM:SS Acording to Culture Settings
+16. [Info] [DropBox] Uploading Completed.Next Backup : MM/DD/YYYY HH:MM:SS Acording to Culture Settings
 
 ## Configration
 | Option | Default | Description
