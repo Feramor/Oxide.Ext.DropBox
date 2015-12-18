@@ -14,7 +14,7 @@ Installing the extension is and remains free for non-commercial and commercial u
 ## Installation
 1. Stop your server if its already running.
 2. Make sure that your server is running a recent version of [Oxide](http://www.oxidemod.org/downloads/).
-3. Download [Oxide.Ext.DropBox](https://github.com/Feramor/Oxide.Ext.DropBox/blob/master/Compiled/Oxide.Ext.DropBox.dll?raw=true) or compile it for yourself
+3. Download [Oxide.Ext.DropBox](http://oxidemod.org/extensions/dropbox-extension.1542/) or compile it for yourself
 4. Place the just downloaded `Oxide.Ext.DropBox.dll` into your server's `Managed` directory.
 5. Run server, wait for fully loaded and stop server.
 6. New config file will be created under `oxide\config` called `DropBox.json`
