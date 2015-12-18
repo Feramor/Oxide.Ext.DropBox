@@ -20,7 +20,7 @@ namespace Oxide.Ext.DropBox
 
         public override string Name => "DropBox";
 
-        public override VersionNumber Version => new VersionNumber(1, 0, 0);
+        public override VersionNumber Version => new VersionNumber(1, 0, 1);
 
         public override string Author => "Feramor";
 

@@ -203,8 +203,12 @@ namespace Oxide.Ext.DropBox.Libraries
                             {
                                 if (!string.IsNullOrEmpty(Current))
                                 {
-                                    string CurrentPath = Path.Combine(Interface.Oxide.RootDirectory, Current);
-                                    if ((File.GetAttributes(CurrentPath) & FileAttributes.Directory) == FileAttributes.Directory)
+                                    string CurrentPath = Path.GetFullPath(Path.Combine(Interface.Oxide.RootDirectory, Current));
+                                    if (!CurrentPath.StartsWith(Interface.Oxide.RootDirectory, StringComparison.Ordinal))
+                                    {
+                                        Interface.Oxide.LogError("[DropBox] You may only access game releated directories...");
+                                    }
+                                    else if ((File.GetAttributes(CurrentPath) & FileAttributes.Directory) == FileAttributes.Directory)
                                     {
                                         if (CurrentPath != Interface.Oxide.RootDirectory)
                                             DirectoryCopy(CurrentPath, Path.Combine(FileBackUpRoot, new DirectoryInfo(CurrentPath).Name), true);
