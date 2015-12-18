@@ -95,134 +95,142 @@ namespace Oxide.Ext.DropBox.Libraries
                 _DataFileSystem.WriteObject<Settings>(Path.Combine(_ConfigDirectory, "DropBox"), _Settings);
             }
 
-            DropboxServiceProvider dropboxServiceProvider= new DropboxServiceProvider(_Settings.DropboxApi["DropboxAppKey"], _Settings.DropboxApi["DropboxAppSecret"], AccessLevel.Full);
-
-            OAuthToken oauthAccessToken = null;
-            bool Authorized = false;
-            IDropbox dropbox = null;
-            do
+            if ((string.IsNullOrEmpty(_Settings.DropboxApi["DropboxAppKey"])) || (string.IsNullOrEmpty(_Settings.DropboxApi["DropboxAppSecret"])))
             {
-                if ((_running) && (string.IsNullOrEmpty(_Settings.UserToken) || string.IsNullOrEmpty(_Settings.UserSecret)))
+                _running = false;
+                Interface.Oxide.LogWarning("[DropBox] To able to use DropBox Extension you need to set DropboxAppKey and DropboxAppSecret in config file.");
+            }
+            if (_running)
+            {
+                DropboxServiceProvider dropboxServiceProvider = new DropboxServiceProvider(_Settings.DropboxApi["DropboxAppKey"], _Settings.DropboxApi["DropboxAppSecret"], AccessLevel.Full);
+
+                OAuthToken oauthAccessToken = null;
+                bool Authorized = false;
+                IDropbox dropbox = null;
+                do
                 {
-                    Interface.Oxide.LogInfo("[DropBox] Getting request token...");
-                    OAuthToken oauthToken = dropboxServiceProvider.OAuthOperations.FetchRequestToken(null, null);
-                    Interface.Oxide.LogInfo("[DropBox] Done");
-                    OAuth1Parameters parameters = new OAuth1Parameters();
-                    string authenticateUrl = dropboxServiceProvider.OAuthOperations.BuildAuthenticateUrl(oauthToken.Value, parameters);
-                    Interface.Oxide.LogInfo("[DropBox] Redirect user for authorization");
-                    Interface.Oxide.LogInfo("[DropBox] {0}", authenticateUrl);
-                    while ((_running) && (Authorized == false))
+                    if ((_running) && (string.IsNullOrEmpty(_Settings.UserToken) || string.IsNullOrEmpty(_Settings.UserSecret)))
+                    {
+                        Interface.Oxide.LogInfo("[DropBox] Getting request token...");
+                        OAuthToken oauthToken = dropboxServiceProvider.OAuthOperations.FetchRequestToken(null, null);
+                        Interface.Oxide.LogInfo("[DropBox] Done");
+                        OAuth1Parameters parameters = new OAuth1Parameters();
+                        string authenticateUrl = dropboxServiceProvider.OAuthOperations.BuildAuthenticateUrl(oauthToken.Value, parameters);
+                        Interface.Oxide.LogInfo("[DropBox] Redirect user for authorization");
+                        Interface.Oxide.LogInfo("[DropBox] {0}", authenticateUrl);
+                        while ((_running) && (Authorized == false))
+                        {
+                            try
+                            {
+                                AuthorizedRequestToken requestToken = new AuthorizedRequestToken(oauthToken, null);
+                                oauthAccessToken = dropboxServiceProvider.OAuthOperations.ExchangeForAccessToken(requestToken, null);
+                                Authorized = true;
+                                _Settings.UserToken = oauthAccessToken.Value;
+                                _Settings.UserSecret = oauthAccessToken.Secret;
+                                _DataFileSystem.WriteObject<Settings>(Path.Combine(_ConfigDirectory, "DropBox"), _Settings);
+                            }
+                            catch
+                            {
+                                Thread.Sleep(5000);
+                            }
+                        }
+                    }
+                    else if (_running)
+                    {
+                        oauthAccessToken = new OAuthToken(_Settings.UserToken, _Settings.UserSecret);
+                    }
+                    if (_running)
                     {
                         try
                         {
-                            AuthorizedRequestToken requestToken = new AuthorizedRequestToken(oauthToken, null);
-                            oauthAccessToken = dropboxServiceProvider.OAuthOperations.ExchangeForAccessToken(requestToken, null);
+                            Interface.Oxide.LogInfo("[DropBox] Authorizing");
+                            dropbox = dropboxServiceProvider.GetApi(oauthAccessToken.Value, oauthAccessToken.Secret);
+                            Interface.Oxide.LogInfo("[DropBox] Authorization Succeed");
                             Authorized = true;
-                            _Settings.UserToken = oauthAccessToken.Value;
-                            _Settings.UserSecret = oauthAccessToken.Secret;
-                            _DataFileSystem.WriteObject<Settings>(Path.Combine(_ConfigDirectory, "DropBox"), _Settings);
                         }
                         catch
                         {
-                            Thread.Sleep(5000);
+                            Interface.Oxide.LogWarning("[DropBox] Authorization Failed");
+                            _Settings.UserToken = "";
+                            _Settings.UserSecret = "";
+                            _DataFileSystem.WriteObject<Settings>(Path.Combine(_ConfigDirectory, "DropBox"), _Settings);
+                            Authorized = false;
                         }
                     }
-                }
-                else if (_running)
+                } while ((_running) && (Authorized == false));
+                if ((_running) && (dropbox != null) && (Authorized == true))
                 {
-                    oauthAccessToken = new OAuthToken(_Settings.UserToken, _Settings.UserSecret);
-                }
-                if (_running)
-                {
-                    try
+                    DropboxProfile profile = dropbox.GetUserProfile();
+                    Interface.Oxide.LogInfo("[DropBox] Current Dropbox User : {0}({1})", profile.DisplayName, profile.Email);
+                    DateTime NextUpdate = DateTime.Now.AddSeconds(60);
+                    Interface.Oxide.LogInfo("[DropBox] First Backup : {0}", NextUpdate.ToString());
+                    while (_running)
                     {
-                        Interface.Oxide.LogInfo("[DropBox] Authorizing");
-                        dropbox = dropboxServiceProvider.GetApi(oauthAccessToken.Value, oauthAccessToken.Secret);
-                        Interface.Oxide.LogInfo("[DropBox] Authorization Succeed");
-                        Authorized = true;
-                    }
-                    catch
-                    {
-                        Interface.Oxide.LogWarning("[DropBox] Authorization Failed");
-                        _Settings.UserToken = "";
-                        _Settings.UserSecret = "";
-                        _DataFileSystem.WriteObject<Settings>(Path.Combine(_ConfigDirectory, "DropBox"), _Settings);
-                        Authorized = false;
-                    }
-                }
-            } while ((_running) && (Authorized == false));
-            if ((_running) && (dropbox != null) && (Authorized == true))
-            {
-                DropboxProfile profile = dropbox.GetUserProfile();
-                Interface.Oxide.LogInfo("[DropBox] Current Dropbox User : {0}({1})",profile.DisplayName,profile.Email);
-                DateTime NextUpdate = DateTime.Now.AddSeconds(60);
-                Interface.Oxide.LogInfo("[DropBox] First Backup : {0}", NextUpdate.ToString());
-                while (_running)
-                {
-                    if (DateTime.Now < NextUpdate)
-                    {
-                        Thread.Sleep(1000);
-                    }
-                    else
-                    {
-                        string BackUpRoot = Path.Combine(Interface.Oxide.RootDirectory, "OxideExtBackup");
-                        string OxideBackUpRoot = Path.Combine(BackUpRoot, "Oxide");
-                        string FileBackUpRoot = Path.Combine(BackUpRoot, "Files");
-
-                        Directory.CreateDirectory(BackUpRoot);
-                        DirectoryInfo OxideExtBackup = new DirectoryInfo(BackUpRoot);
-                        foreach (FileInfo file in OxideExtBackup.GetFiles()) file.Delete();
-                        foreach (DirectoryInfo subDirectory in OxideExtBackup.GetDirectories()) subDirectory.Delete(true);
-
-                        Directory.CreateDirectory(OxideBackUpRoot);
-                        Directory.CreateDirectory(FileBackUpRoot);
-
-                        if (_Settings.BackupOxideConfig)
-                            DirectoryCopy(Interface.Oxide.ConfigDirectory, Path.Combine(OxideBackUpRoot, "config"), true);
-
-                        if (_Settings.BackupOxideData)
-                            DirectoryCopy(Interface.Oxide.DataDirectory, Path.Combine(OxideBackUpRoot, "data"), true);
-
-                        if (_Settings.BackupOxideLang)
-                            DirectoryCopy(Interface.Oxide.LangDirectory, Path.Combine(OxideBackUpRoot, "lang"), true);
-
-                        if (_Settings.BackupOxideLogs)
-                            DirectoryCopy(Interface.Oxide.LogDirectory, Path.Combine(OxideBackUpRoot, "logs"), true);
-
-                        if (_Settings.BackupOxidePlugins)
-                            DirectoryCopy(Interface.Oxide.PluginDirectory, Path.Combine(OxideBackUpRoot, "plugins"), true);
-
-                        foreach (string Current in _Settings.FileList)
+                        if (DateTime.Now < NextUpdate)
                         {
-                            if (!string.IsNullOrEmpty(Current))
+                            Thread.Sleep(1000);
+                        }
+                        else
+                        {
+                            string BackUpRoot = Path.Combine(Interface.Oxide.RootDirectory, "OxideExtBackup");
+                            string OxideBackUpRoot = Path.Combine(BackUpRoot, "Oxide");
+                            string FileBackUpRoot = Path.Combine(BackUpRoot, "Files");
+
+                            Directory.CreateDirectory(BackUpRoot);
+                            DirectoryInfo OxideExtBackup = new DirectoryInfo(BackUpRoot);
+                            foreach (FileInfo file in OxideExtBackup.GetFiles()) file.Delete();
+                            foreach (DirectoryInfo subDirectory in OxideExtBackup.GetDirectories()) subDirectory.Delete(true);
+
+                            Directory.CreateDirectory(OxideBackUpRoot);
+                            Directory.CreateDirectory(FileBackUpRoot);
+
+                            if (_Settings.BackupOxideConfig)
+                                DirectoryCopy(Interface.Oxide.ConfigDirectory, Path.Combine(OxideBackUpRoot, "config"), true);
+
+                            if (_Settings.BackupOxideData)
+                                DirectoryCopy(Interface.Oxide.DataDirectory, Path.Combine(OxideBackUpRoot, "data"), true);
+
+                            if (_Settings.BackupOxideLang)
+                                DirectoryCopy(Interface.Oxide.LangDirectory, Path.Combine(OxideBackUpRoot, "lang"), true);
+
+                            if (_Settings.BackupOxideLogs)
+                                DirectoryCopy(Interface.Oxide.LogDirectory, Path.Combine(OxideBackUpRoot, "logs"), true);
+
+                            if (_Settings.BackupOxidePlugins)
+                                DirectoryCopy(Interface.Oxide.PluginDirectory, Path.Combine(OxideBackUpRoot, "plugins"), true);
+
+                            foreach (string Current in _Settings.FileList)
                             {
-                                string CurrentPath = Path.Combine(Interface.Oxide.RootDirectory, Current);
-                                if ((File.GetAttributes(CurrentPath) & FileAttributes.Directory) == FileAttributes.Directory)
+                                if (!string.IsNullOrEmpty(Current))
                                 {
-                                    if (CurrentPath != Interface.Oxide.RootDirectory)
-                                        DirectoryCopy(CurrentPath, Path.Combine(FileBackUpRoot, new DirectoryInfo(CurrentPath).Name), true);
-                                }
-                                else
-                                {
-                                    File.Copy(CurrentPath, Path.Combine(FileBackUpRoot, new FileInfo(CurrentPath).Name));
+                                    string CurrentPath = Path.Combine(Interface.Oxide.RootDirectory, Current);
+                                    if ((File.GetAttributes(CurrentPath) & FileAttributes.Directory) == FileAttributes.Directory)
+                                    {
+                                        if (CurrentPath != Interface.Oxide.RootDirectory)
+                                            DirectoryCopy(CurrentPath, Path.Combine(FileBackUpRoot, new DirectoryInfo(CurrentPath).Name), true);
+                                    }
+                                    else
+                                    {
+                                        File.Copy(CurrentPath, Path.Combine(FileBackUpRoot, new FileInfo(CurrentPath).Name));
+                                    }
                                 }
                             }
+                            string FileName = string.Format("{0}.{1}.{2}.{3}.{4}.{5}.zip", DateTime.UtcNow.Year, DateTime.UtcNow.Month, DateTime.UtcNow.Day, DateTime.UtcNow.Hour, DateTime.UtcNow.Minute, DateTime.UtcNow.Second);
+                            FileStream fsOut = File.Create(Path.Combine(Interface.Oxide.RootDirectory, FileName));
+                            ZipOutputStream zipStream = new ZipOutputStream(fsOut);
+                            zipStream.SetLevel(3);
+                            string folderName = Path.Combine(Interface.Oxide.RootDirectory, "OxideExtBackup");
+                            int folderOffset = folderName.Length + (folderName.EndsWith("\\") ? 0 : 1);
+                            CompressFolder(folderName, zipStream, folderOffset);
+                            zipStream.IsStreamOwner = true;
+                            zipStream.Close();
+                            Interface.Oxide.LogInfo("[DropBox] Uploading...");
+                            Entry uploadFileEntry = dropbox.UploadFile(new FileResource(Path.Combine(Interface.Oxide.RootDirectory, FileName)), string.Format("/{0}/{1}", _Settings.BackupName, FileName), true, null);
+                            Directory.Delete(folderName, true);
+                            File.Delete(Path.Combine(Interface.Oxide.RootDirectory, FileName));
+                            NextUpdate = NextUpdate.AddSeconds(_Settings.BackupInterval);
+                            Interface.Oxide.LogInfo("[DropBox] Uploading Complated.Next Backup : {0}", NextUpdate.ToString());
                         }
-                        string FileName = string.Format("{0}.{1}.{2}.{3}.{4}.{5}.zip", DateTime.UtcNow.Year, DateTime.UtcNow.Month, DateTime.UtcNow.Day, DateTime.UtcNow.Hour, DateTime.UtcNow.Minute, DateTime.UtcNow.Second);
-                        FileStream fsOut = File.Create(Path.Combine(Interface.Oxide.RootDirectory, FileName));
-                        ZipOutputStream zipStream = new ZipOutputStream(fsOut);
-                        zipStream.SetLevel(3);
-                        string folderName = Path.Combine(Interface.Oxide.RootDirectory, "OxideExtBackup");
-                        int folderOffset = folderName.Length + (folderName.EndsWith("\\") ? 0 : 1);
-                        CompressFolder(folderName, zipStream, folderOffset);
-                        zipStream.IsStreamOwner = true;
-                        zipStream.Close();
-                        Interface.Oxide.LogInfo("[DropBox] Uploading...");
-                        Entry uploadFileEntry = dropbox.UploadFile(new FileResource(Path.Combine(Interface.Oxide.RootDirectory, FileName)), string.Format("/{0}/{1}", _Settings.BackupName, FileName), true, null);
-                        Directory.Delete(folderName, true);
-                        File.Delete(Path.Combine(Interface.Oxide.RootDirectory, FileName));
-                        NextUpdate = NextUpdate.AddSeconds(_Settings.BackupInterval);
-                        Interface.Oxide.LogInfo("[DropBox] Uploading Complated.Next Backup : {0}",NextUpdate.ToString());
                     }
                 }
             }
